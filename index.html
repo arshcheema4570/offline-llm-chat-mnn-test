@@ -66,7 +66,7 @@
   <div class="brand">
     <div class="mark">💬</div>
     <div class="brand-text">
-      <strong>Gemma 3 270M — Offline Chat</strong>
+      <strong>MNN-Pocket 0.3B — Offline Chat (test)</strong>
       <span>Runs on your device · no server, no WebGPU</span>
     </div>
   </div>
@@ -342,7 +342,7 @@ async function loadModel(opts = {}) {
   retryRow.style.display = 'none';
   loadBtn.disabled = true;
   loadBtn.textContent = opts.auto ? 'Loading…' : 'Downloading…';
-  setStatus(opts.auto ? 'Loading saved model…' : 'Loading Gemma 3 270M on CPU (WASM)… first run downloads ~0.25 GB.');
+  setStatus(opts.auto ? 'Loading saved model…' : 'Loading MNN-Pocket 0.3B on CPU (WASM)… first run downloads ~0.19 GB.');
   progressWrap.style.display = 'block';
   progressBar.style.width = '0%';
   try {
@@ -365,7 +365,7 @@ async function loadModel(opts = {}) {
       },
     });
     progressWrap.style.display = 'none';
-    setStatus('Model ready — Gemma 3 270M running fully on CPU (WASM). No WebGPU, no server.');
+    setStatus('Model ready — MNN-Pocket 0.3B running fully on CPU (WASM). No WebGPU, no server.');
     offlineBadge.textContent = 'Ready — works offline';
     inputEl.disabled = false;
     sendBtn.disabled = false;
@@ -447,7 +447,7 @@ async function isModelCached() {
 setStatus('Checking for the saved model…');
 isModelCached().then((cached) => {
   if (cached) loadModel({ auto: true });
-  else setStatus('Model not loaded. Tap “Download model” — one-time download (~0.25 GB), then it runs fully offline.');
+  else setStatus('Model not loaded. Tap “Download model” — one-time download (~0.19 GB), then it runs fully offline.');
 }).catch(() => {});
 
 document.getElementById('chatForm').addEventListener('submit', async (e) => {
@@ -463,21 +463,19 @@ document.getElementById('chatForm').addEventListener('submit', async (e) => {
   const outDiv = addMsg('assistant', '');
   const t0 = performance.now();
   let tokens = 0;
-  // Raw completion with a hand-built prompt in Gemma's native format.
-  // This avoids any chat-template channel quirks in the runtime's chat API.
-  const prompt = history.map(m =>
-    `<start_of_turn>${m.role === 'assistant' ? 'model' : 'user'}\n${m.content}<end_of_turn>\n`
-  ).join('') + '<start_of_turn>model\n';
+  // Chat completion using the loaded model's own chat template.
+  // (The old code hand-built Gemma's prompt format, which non-Gemma
+  // models don't understand — that's what made MNN-Pocket ramble.)
   try {
-    const stream = await wllama.createCompletion({
-      prompt,
+    const stream = await wllama.createChatCompletion({
+      messages: history,
       max_tokens: 512,
       temperature: 0.7,
       stream: true,
     });
     let raw = '';
     for await (const chunk of stream) {
-      const piece = chunk.choices[0]?.text ?? '';
+      const piece = chunk.choices[0]?.delta?.content ?? chunk.choices[0]?.text ?? '';
       if (piece) { tokens++; raw += piece; outDiv.textContent = raw; chatEl.scrollTop = chatEl.scrollHeight; }
     }
     history.push({ role: 'assistant', content: raw });
